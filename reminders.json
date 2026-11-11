@@ -1,9 +1,9 @@
 {
   "_help": "weekday: mon..sun, or day_of_month: 1-31. user: Discord user ID (Developer Mode -> right-click name -> Copy User ID).",
   "members": {
-    "vincent": "VINCENT_USER_ID",
-    "zlata": "ZLATA_USER_ID",
-    "tappy": "TAPPY_USER_ID"
+    "vincent": "360012406015000577",
+    "zlata": "529562799827976212",
+    "tappy": "360012406015000577"
   },
   "reminders": [
     {"to": "vincent", "weekday": "tue", "message": "Reminder: the marketing post needs to be finished today."},
