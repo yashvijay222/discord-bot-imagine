@@ -1,16 +1,18 @@
-"""Post today's due reminders to the Discord bot channel.
+"""Daily 1 PM reminders that skip tasks someone already said are done.
 
-Run once a day at 1 PM (via a Claude routine or any scheduler):
-    DISCORD_TOKEN=... DISCORD_CHANNEL_ID=... python remind.py
-    python remind.py --dry-run --any-hour   # print instead of posting, ignore the 1 PM check
-    python remind.py --test             # run self-checks
+The Claude routine runs --check, decides which due tasks are already done, then --send's the rest:
+    python3 remind.py --check          # today's due tasks + the read channel's last 21 days of messages
+    python3 remind.py --send <id>      # post that reminder (only if it is due today)
+    add --any-hour to either to skip the "only at 1 PM Detroit time" check (for testing)
+    python3 remind.py --test           # self-checks
+Needs DISCORD_TOKEN (and DISCORD_CHANNEL_ID for --send).
 """
 import json
 import os
 import re
 import sys
 import urllib.request
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -74,24 +76,39 @@ def render(messages, members, since: datetime):
 
 
 def main():
+    args = sys.argv[1:]
+    if "--check" not in args and "--send" not in args:
+        sys.exit(__doc__)
     cfg = json.loads(CONFIG.read_text())
-    now = datetime.now(ZoneInfo("America/Detroit"))
-    # Scheduler fires at both 17:00 and 18:00 UTC (cron is UTC); only the one that is 1 PM in Michigan posts.
-    if "--any-hour" not in sys.argv and now.hour != 13:
-        print(f"{now:%H:%M} Detroit is not 1 PM, skipping")
+    now = datetime.now(DETROIT)
+    # Scheduler fires at both 17:00 and 18:00 UTC (cron is UTC); only the one that is 1 PM in Michigan acts.
+    if "--any-hour" not in args and now.hour != 13:
+        print(f"{now:%H:%M} Detroit is not 1 PM, nothing to do")
         return
     today = now.date()
-    todo = due(cfg["reminders"], today)
-    dry = "--dry-run" in sys.argv
-    if not dry:
-        token, channel = os.environ["DISCORD_TOKEN"], os.environ["DISCORD_CHANNEL_ID"]
-    for r in todo:
+
+    if "--send" in args:
+        i = args.index("--send") + 1
+        rid = args[i] if i < len(args) else ""
+        r = pick(cfg["reminders"], rid, today)
+        if r is None:
+            sys.exit(f"not due today: {rid}")
         user = cfg["members"][r["to"]]
-        if dry:
-            print(f"[{today}] @{r['to']} ({user}): {r['message']}")
-        else:
-            post(token, channel, f"<@{user}> {r['message']}", [user])
-    print(f"{today}: {len(todo)} reminder(s) {'would be ' if dry else ''}sent")
+        post(os.environ["DISCORD_TOKEN"], os.environ["DISCORD_CHANNEL_ID"], f"<@{user}> {r['message']}", [user])
+        print(f"sent {rid}")
+        return
+
+    todo = due(cfg["reminders"], today)
+    print(f"Today: {today:%A %Y-%m-%d}")
+    if not todo:
+        print("Due today: none")
+        return
+    print("Due today:")
+    for r in todo:
+        print(f"- {r['id']}: @{r['to']}: {r['message']}")
+    since = now - timedelta(days=21)
+    print("\nMessages in the last 21 days:")
+    print(render(fetch_messages(os.environ["DISCORD_TOKEN"], cfg["read_channel"], since), cfg["members"], since))
 
 
 def test():
