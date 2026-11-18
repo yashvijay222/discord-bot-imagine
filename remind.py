@@ -23,6 +23,11 @@ def due(reminders, today: date):
             if r.get("weekday") == wd or r.get("day_of_month") == today.day]
 
 
+def pick(reminders, rid, today: date):
+    """The reminder with this id if it is due today, else None (so --send can't fire other reminders)."""
+    return next((r for r in due(reminders, today) if r["id"] == rid), None)
+
+
 def post(token, channel_id, content, ping=()):
     """Post a message; only user IDs in `ping` get notified (never @everyone)."""
     body = json.dumps({"content": content, "allowed_mentions": {"users": list(ping)}}).encode()
@@ -63,6 +68,10 @@ def test():
     assert to(date(2026, 11, 12)) == ["vincent/thu"]           # Thursday
     assert to(date(2026, 11, 14)) == []                        # Saturday
     assert to(date(2026, 12, 1)) == ["tappy/dom", "vincent/tue"]  # Dec 1 is a Tuesday
+    assert pick(rs, "zlata-wed", date(2026, 11, 11))["to"] == "zlata"   # Wednesday
+    assert pick(rs, "zlata-wed", date(2026, 11, 12)) is None            # not due Thursday
+    assert pick(rs, "nope", date(2026, 11, 11)) is None
+    assert all("id" in r for r in rs) and len({r["id"] for r in rs}) == len(rs)
     print("ok")
 
 

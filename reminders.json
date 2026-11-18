@@ -1,14 +1,15 @@
 {
-  "_help": "weekday: mon..sun, or day_of_month: 1-31. user: Discord user ID (Developer Mode -> right-click name -> Copy User ID).",
+  "_help": "weekday: mon..sun, or day_of_month: 1-31. Member IDs and read_channel: Discord Developer Mode -> right-click -> Copy ID. id: any unique name.",
+  "read_channel": "1050054223695446078",
   "members": {
     "vincent": "360012406015000577",
     "zlata": "529562799827976212",
     "tappy": "360012406015000577"
   },
   "reminders": [
-    {"to": "vincent", "weekday": "tue", "message": "Reminder: the marketing post needs to be finished today."},
-    {"to": "vincent", "weekday": "thu", "message": "Reminder: time to post the marketing material."},
-    {"to": "zlata", "weekday": "wed", "message": "Reminder: please book the Next Room and order food for the event."},
-    {"to": "tappy", "day_of_month": 1, "message": "New month! Please make sure all of this month's events are finalized."}
+    {"id": "vincent-tue", "to": "vincent", "weekday": "tue", "message": "Reminder: the marketing post needs to be finished today."},
+    {"id": "vincent-thu", "to": "vincent", "weekday": "thu", "message": "Reminder: time to post the marketing material."},
+    {"id": "zlata-wed", "to": "zlata", "weekday": "wed", "message": "Reminder: please book the Next Room and order food for the event."},
+    {"id": "tappy-1st", "to": "tappy", "day_of_month": 1, "message": "New month! Please make sure all of this month's events are finalized."}
   ]
 }
