@@ -7,6 +7,7 @@ Run once a day at 1 PM (via a Claude routine or any scheduler):
 """
 import json
 import os
+import re
 import sys
 import urllib.request
 from datetime import date, datetime
@@ -15,6 +16,7 @@ from zoneinfo import ZoneInfo
 
 WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 CONFIG = Path(__file__).with_name("reminders.json")
+DETROIT = ZoneInfo("America/Detroit")
 
 
 def due(reminders, today: date):
@@ -28,15 +30,47 @@ def pick(reminders, rid, today: date):
     return next((r for r in due(reminders, today) if r["id"] == rid), None)
 
 
-def post(token, channel_id, content, ping=()):
-    """Post a message; only user IDs in `ping` get notified (never @everyone)."""
-    body = json.dumps({"content": content, "allowed_mentions": {"users": list(ping)}}).encode()
+def api(token, path, body=None):
+    """Discord REST call: GET, or POST when there is a body. Raises on non-2xx."""
     req = urllib.request.Request(
-        f"https://discord.com/api/v10/channels/{channel_id}/messages",
-        data=body, method="POST",
+        f"https://discord.com/api/v10/{path}",
+        data=None if body is None else json.dumps(body).encode(),
+        method="GET" if body is None else "POST",
         headers={"Authorization": f"Bot {token}", "Content-Type": "application/json",
                  "User-Agent": "ImagineBot (https://github.com, 1.0)"})
-    urllib.request.urlopen(req).close()  # raises on non-2xx
+    with urllib.request.urlopen(req) as r:
+        return json.loads(r.read() or "null")
+
+
+def post(token, channel_id, content, ping=()):
+    """Post a message; only user IDs in `ping` get notified (never @everyone)."""
+    api(token, f"channels/{channel_id}/messages",
+        {"content": content, "allowed_mentions": {"users": list(ping)}})
+
+
+def fetch_messages(token, channel_id, since: datetime):
+    """Channel messages newest-first, paging back until older than `since` (max 1000)."""
+    out, before = [], ""
+    for _ in range(10):
+        page = api(token, f"channels/{channel_id}/messages?limit=100{before}")
+        out += page
+        if len(page) < 100 or datetime.fromisoformat(page[-1]["timestamp"]) < since:
+            break
+        before = f"&before={page[-1]['id']}"
+    return out
+
+
+def render(messages, members, since: datetime):
+    """Oldest-first '[date time] author: text' lines in Detroit time, without bots or old messages."""
+    names = {uid: name for name, uid in members.items()}
+    lines = []
+    for m in sorted(messages, key=lambda m: m["timestamp"]):
+        ts = datetime.fromisoformat(m["timestamp"])
+        if m["author"].get("bot") or ts < since:  # the bot's own past reminders aren't evidence
+            continue
+        text = re.sub(r"<@!?(\d+)>", lambda x: "@" + names.get(x[1], x[1]), m["content"]) or "[attachment or embed]"
+        lines.append(f"[{ts.astimezone(DETROIT):%Y-%m-%d %H:%M}] {m['author']['username']}: {text}")
+    return "\n".join(lines) or "(no messages)"
 
 
 def main():
@@ -72,6 +106,17 @@ def test():
     assert pick(rs, "zlata-wed", date(2026, 11, 12)) is None            # not due Thursday
     assert pick(rs, "nope", date(2026, 11, 11)) is None
     assert all("id" in r for r in rs) and len({r["id"] for r in rs}) == len(rs)
+    since = datetime(2026, 11, 1, tzinfo=ZoneInfo("UTC"))  # Nov 2026 18:00 UTC = 13:00 Detroit
+    msgs = [
+        {"timestamp": "2026-11-18T18:00:00+00:00", "author": {"username": "zlata"}, "content": "booked the room <@360012406015000577>"},
+        {"timestamp": "2026-11-17T18:00:00+00:00", "author": {"username": "Imagine Bot", "bot": True}, "content": "Reminder: book"},
+        {"timestamp": "2026-11-16T18:00:00+00:00", "author": {"username": "yash"}, "content": ""},
+        {"timestamp": "2026-10-01T18:00:00+00:00", "author": {"username": "old"}, "content": "too old"},
+    ]
+    assert render(msgs, {"vincent": "360012406015000577"}, since) == (
+        "[2026-11-16 13:00] yash: [attachment or embed]\n"
+        "[2026-11-18 13:00] zlata: booked the room @vincent")
+    assert render([], {}, since) == "(no messages)"
     print("ok")
 
 
