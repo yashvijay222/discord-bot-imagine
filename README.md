@@ -1,7 +1,8 @@
 # Imagine Software Discord Bot
 
 Phase 1: daily 1 PM (Michigan time) reminders that @ board members in a bot channel.
-Later: calendar, call transcription + summaries (needs an always-on host).
+Phase 2: meeting summaries from Craig recordings (`summarize.py`, run locally).
+Later: calendar.
 
 - `reminders.json` — who gets reminded, when, and what it says. Edit this to add reminders.
 - `remind.py` — posts today's reminders. No dependencies (Python 3.9+ stdlib).
@@ -35,3 +36,17 @@ DISCORD_TOKEN=xxx DISCORD_CHANNEL_ID=123 python3 remind.py --any-hour
    `DISCORD_TOKEN` and `DISCORD_CHANNEL_ID`.
 3. Create a routine on this repo, cron `0 17,18 * * *` (UTC; the script posts only on the run that is 1 PM in Michigan),
    prompt: `Run "python3 remind.py" from the repo root and report its output. Do not modify any files.`
+
+## Meeting summaries (`summarize.py`)
+
+1. Announce the recording and get consent, then record the call with the [Craig](https://craig.chat) bot.
+2. Download the multi-track **FLAC zip** from Craig (one track per speaker).
+3. Run it (first run downloads the Whisper model):
+```bash
+pip install faster-whisper anthropic
+export ANTHROPIC_API_KEY=... DISCORD_TOKEN=... DISCORD_CHANNEL_ID=...
+python3 summarize.py craig-recording.zip --dry-run   # check the summary first
+python3 summarize.py craig-recording.zip             # post it to the bot channel
+```
+Transcription runs locally with faster-whisper (`WHISPER_MODEL=medium` for better accuracy); only the text goes to Claude.
+The full transcript is saved as `craig-recording.transcript.txt`.

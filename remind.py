@@ -23,11 +23,9 @@ def due(reminders, today: date):
             if r.get("weekday") == wd or r.get("day_of_month") == today.day]
 
 
-def post(token, channel_id, user_id, message):
-    body = json.dumps({
-        "content": f"<@{user_id}> {message}",
-        "allowed_mentions": {"users": [user_id]},
-    }).encode()
+def post(token, channel_id, content, ping=()):
+    """Post a message; only user IDs in `ping` get notified (never @everyone)."""
+    body = json.dumps({"content": content, "allowed_mentions": {"users": list(ping)}}).encode()
     req = urllib.request.Request(
         f"https://discord.com/api/v10/channels/{channel_id}/messages",
         data=body, method="POST",
@@ -53,7 +51,7 @@ def main():
         if dry:
             print(f"[{today}] @{r['to']} ({user}): {r['message']}")
         else:
-            post(token, channel, user, r["message"])
+            post(token, channel, f"<@{user}> {r['message']}", [user])
     print(f"{today}: {len(todo)} reminder(s) {'would be ' if dry else ''}sent")
 
 
