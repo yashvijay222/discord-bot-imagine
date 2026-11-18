@@ -75,16 +75,26 @@ def render(messages, members, since: datetime):
     return "\n".join(lines) or "(no messages)"
 
 
+def closed(now: datetime, args):
+    """(message, exit code) when it isn't 1 PM in Detroit, else None. The routine fires at 17:00 and 18:00 UTC
+    so one run is always 1 PM; the other exits 0. A --send outside 1 PM fails, so a late send isn't silently lost."""
+    if "--any-hour" in args or now.hour == 13:
+        return None
+    if "--send" in args:
+        return f"not sent: it is {now:%H:%M} in Detroit, past the 1 PM window", 1
+    return f"{now:%H:%M} Detroit is not 1 PM, nothing to do", 0
+
+
 def main():
     args = sys.argv[1:]
     if "--check" not in args and "--send" not in args:
         sys.exit(__doc__)
     cfg = json.loads(CONFIG.read_text())
     now = datetime.now(DETROIT)
-    # Scheduler fires at both 17:00 and 18:00 UTC (cron is UTC); only the one that is 1 PM in Michigan acts.
-    if "--any-hour" not in args and now.hour != 13:
-        print(f"{now:%H:%M} Detroit is not 1 PM, nothing to do")
-        return
+    shut = closed(now, args)
+    if shut:
+        print(shut[0], file=sys.stderr if shut[1] else sys.stdout)
+        sys.exit(shut[1])
     today = now.date()
 
     if "--send" in args:
@@ -134,6 +144,11 @@ def test():
         "[2026-11-16 13:00] yash: [attachment or embed]\n"
         "[2026-11-18 13:00] zlata: booked the room @vincent")
     assert render([], {}, since) == "(no messages)"
+    two_pm, one_pm = datetime(2026, 11, 18, 14, 0, tzinfo=DETROIT), datetime(2026, 11, 18, 13, 59, tzinfo=DETROIT)
+    assert closed(one_pm, ["--send", "zlata-wed"]) is None
+    assert closed(two_pm, ["--send", "zlata-wed"])[1] == 1    # a late --send must fail loudly
+    assert closed(two_pm, ["--check"])[1] == 0                # the routine's other hourly run is normal
+    assert closed(two_pm, ["--send", "x", "--any-hour"]) is None
     print("ok")
 
 
