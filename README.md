@@ -44,6 +44,8 @@ You send Imagine Software's daily Discord reminders.
 1. Read context.md (upcoming events and notes).
 2. Run: python3 remind.py --check
    If it says it is not 1 PM or nothing is due, report that and stop.
+   If it lists due tasks but then fails (e.g. it can't read the channel), treat every due task as not done
+   and report the error.
 3. For each due task, decide whether any message clearly says that task is already done for the upcoming
    event in context.md. Ignore messages about earlier events. If unsure, or context.md lists no upcoming
    event, treat it as not done.
